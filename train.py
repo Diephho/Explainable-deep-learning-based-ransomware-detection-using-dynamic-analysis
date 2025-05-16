@@ -1,0 +1,88 @@
+# train.py
+import os
+import json
+import numpy as np
+from sklearn.model_selection import train_test_split
+from config import RANDOM_STATE, VALIDATION_SPLIT, BATCH_SIZE, EPOCHS
+from data_utils import build_token_dict, prepare_sequences
+from model import model
+
+def load_reports(ransom_dir: str, benign_dir: str):
+    """
+    Đọc các file JSON trong hai thư mục:
+      - ransom_dir: mẫu ransomware (label=1)
+      - benign_dir: mẫu benign (label=0)
+    Mỗi file JSON chứa trực tiếp keys 'apis','dlls','mutexes'.
+    Trả về lists: reports (list of features dict) và labels.
+    """
+    reports, labels = [], []
+    # Ransomware samples
+    for fname in os.listdir(ransom_dir):
+        if not fname.lower().endswith('.json'):
+            continue
+        full = os.path.join(ransom_dir, fname)
+        with open(full, 'r', encoding='utf-8') as f:
+            features = json.load(f)
+        reports.append(features)
+        labels.append(1)
+    # Benign samples
+    for fname in os.listdir(benign_dir):
+        if not fname.lower().endswith('.json'):
+            continue
+        full = os.path.join(benign_dir, fname)
+        with open(full, 'r', encoding='utf-8') as f:
+            features = json.load(f)
+        reports.append(features)
+        labels.append(0)
+    return reports, labels
+
+def main():
+    # Thư mục chứa file report JSON
+    ransom_dir = 'attributes/ransomware'
+    benign_dir = 'attributes/benign'
+    reports, labels = load_reports(ransom_dir, benign_dir)
+
+    # Tạo từ điển và sequence
+    token2id  = build_token_dict(reports)
+    # Lưu token2id để sử dụng cho explain.py
+    with open('token2id.json', 'w', encoding='utf-8') as f:
+        json.dump(token2id, f, indent=4)
+
+    sequences = prepare_sequences(reports, token2id)
+    X = sequences
+    y = np.array(labels)
+
+    # Chia train/test
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=0.1,
+        stratify=y,
+        random_state=RANDOM_STATE
+    )
+
+    # Lấy background samples cho SHAP
+    background_size = min(100, X_train.shape[0])
+    X_background = X_train[:background_size]
+    np.save('X_background.npy', X_background)
+    np.save('X_test.npy', X_test)
+
+    # Xây và huấn luyện mô hình
+    cnn_model = model(vocab_size=len(token2id) + 1)
+    cnn_model.summary()
+
+    history = cnn_model.fit(
+        X_train, y_train,
+        validation_split=VALIDATION_SPLIT,
+        epochs=EPOCHS,
+        batch_size=BATCH_SIZE
+    )
+
+    # Lưu weights best model để explain.py sử dụng
+    cnn_model.save_weights('best_model.weights.h5')
+
+    # Đánh giá
+    loss, acc = cnn_model.evaluate(X_test, y_test)
+    print(f"Test loss: {loss:.4f}, Test accuracy: {acc:.4f}")
+
+if __name__ == '__main__':
+    main()
