@@ -36,11 +36,11 @@ def model(vocab_size: int) -> tf.keras.Model:
         Dropout(0.5),
 
         # Lớp 4: Output Layer (Sigmoid Classifier)
-        Dense(1, activation='sigmoid')
+        Dense(2, activation='softmax')
     ])
     model.compile(
         optimizer='adam',
-        loss='binary_crossentropy',
+        loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
     return model

@@ -9,6 +9,7 @@ def build_token_dict(reports):
     Padding ID = 0.
     """
     all_tokens = set()
+    token2id = {"<PAD>": 0} 
     for r in reports:
         all_tokens.update(r['apis'])
         all_tokens.update(r['dlls'])
