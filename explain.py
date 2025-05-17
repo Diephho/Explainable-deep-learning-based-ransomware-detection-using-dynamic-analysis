@@ -58,17 +58,17 @@ def shap_explain_global(cnn_model, X_background, X_test, id2token):
 
 if __name__ == "__main__":
     # 1. Load token2id và build id2token
-    token2id = json.load(open("/kaggle/input/xran-demo/XRan-demo/token2id.json", encoding="utf-8"))
+    token2id = json.load(open("./token2id.json", encoding="utf-8"))
     id2token = build_id2token(token2id)
 
     # 2. Khởi tạo và build model để load_weights
     cnn_model = build_model(vocab_size=len(token2id)+1)
     cnn_model.build((None, SEQ_LEN))
-    cnn_model.load_weights("/kaggle/input/xran-demo/XRan-demo/best_model.weights.h5")
+    cnn_model.load_weights("./best_model.weights.h5")
 
     # 3. Chuẩn bị dữ liệu SHAP & LIME
-    X_background = np.load("/kaggle/input/xran-demo/XRan-demo/X_background.npy")
-    X_test       = np.load("/kaggle/input/xran-demo/XRan-demo/X_test.npy")
+    X_background = np.load("./X_background.npy")
+    X_test       = np.load("./X_test.npy")
 
     # 4. Global SHAP
     global_shap = shap_explain_global(cnn_model, X_background, X_test, id2token)
