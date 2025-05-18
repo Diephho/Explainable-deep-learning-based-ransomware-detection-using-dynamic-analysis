@@ -69,7 +69,7 @@ def extract_fields(report_path, check):
         
         attributes = {
             "dlls": dlls[:10],
-            "apis": list(set(apis))[:500],  # loại trùng và lấy 500 đầu
+            "apis": apis[:500],
             "mutexes": mutexes[:10]
         }
         report_file = os.path.splitext(os.path.basename(report_path))[0]
