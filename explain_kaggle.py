@@ -1,0 +1,94 @@
+# explain.py
+
+import numpy as np
+import json
+from lime.lime_text import LimeTextExplainer
+import shap
+from data_utils import prepare_sequences
+from model import model as build_model
+from config import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
+
+def build_id2token(token2id):
+    id2token = {int(idx): tok for tok, idx in token2id.items()}
+    if 0 not in id2token:
+        id2token[0] = "<PAD>"
+    return id2token
+
+
+def lime_explain_instance(cnn_model, sequence, id2token, num_features=10):
+    explainer = LimeTextExplainer(class_names=["benign","ransomware"], split_expression=r"\s+")
+    def predict_proba(texts):
+        seqs = []
+        for t in texts:
+            tokens = [int(x) for x in t.split()]
+            # Padding hoặc cắt để độ dài đúng SEQ_LEN
+            if len(tokens) < SEQ_LEN:
+                tokens = tokens + [0] * (SEQ_LEN - len(tokens))
+            else:
+                tokens = tokens[:SEQ_LEN]
+            seqs.append(tokens)
+        X = np.array(seqs)
+        probs = cnn_model.predict(X)
+        return np.hstack([1 - probs, probs])
+    text_input = " ".join(str(int(x)) for x in sequence)
+    exp = explainer.explain_instance(text_input, predict_proba, num_features=num_features)
+    return [(id2token[int(tok)], weight) for tok, weight in exp.as_list()]
+
+def shap_explain_global(cnn_model, X_background, X_test, id2token):
+    try:
+        # Dùng GradientExplainer cho TF2.x
+        explainer = shap.GradientExplainer(cnn_model, X_background)
+        shap_vals = explainer.shap_values(X_test)
+    except Exception:
+        # Fallback: KernelExplainer (chậm hơn)
+        f = lambda x: cnn_model.predict(x)
+        explainer = shap.KernelExplainer(f, X_background[:50])
+        shap_vals = explainer.shap_values(X_test[:20])
+    sv = shap_vals[1]  # cho lớp ransomware
+    X_display = X_test[:sv.shape[0]]
+
+    # Tính mean |SHAP| theo nhóm
+    avg_api   = np.abs(sv[:,:MAX_LEN_API]).mean()
+    avg_dll   = np.abs(sv[:,MAX_LEN_API:MAX_LEN_API+MAX_LEN_DLL]).mean()
+    avg_mutex = np.abs(sv[:,-MAX_LEN_MUTEX:]).mean()
+
+    shap.summary_plot(sv, X_display, feature_names=[id2token.get(i, f"<UNK_{i}>") for i in range(SEQ_LEN)])
+    return {"api_mean_abs_shap": avg_api,
+            "dll_mean_abs_shap": avg_dll,
+            "mutex_mean_abs_shap": avg_mutex}
+
+if __name__ == "__main__":
+    # 1. Load token2id và build id2token
+    token2id = json.load(open("/kaggle/input/xran-demo/token2id.json", encoding="utf-8"))
+    id2token = build_id2token(token2id)
+
+    # 2. Khởi tạo và build model để load_weights
+    cnn_model = build_model(vocab_size=len(token2id)+1)
+    cnn_model.build((None, SEQ_LEN))
+    cnn_model.load_weights("/kaggle/input/xran-demo/best_model.weights.h5")
+
+    # 3. Chuẩn bị dữ liệu SHAP & LIME
+    X_background = np.load("/kaggle/input/xran-demo/X_background.npy")
+    X_test       = np.load("/kaggle/input/xran-demo/X_test.npy")
+
+    # 4. Global SHAP
+    global_shap = shap_explain_global(cnn_model, X_background, X_test, id2token)
+    print("Global SHAP:", global_shap)
+
+    pad_token_id = 0  # hoặc đọc từ token2id['<PAD>'] nếu có
+
+    for count, X_test_i in enumerate(X_test, 1):
+        # Bỏ các token ID là <PAD>
+        tokens_without_pad = [x for x in X_test_i if x != pad_token_id]
+        
+        if not tokens_without_pad:
+            print(f"Sample {count}: Empty after removing PAD, likely benign file.")
+            continue
+
+        local_lime = lime_explain_instance(cnn_model, tokens_without_pad, id2token)
+
+        top_feature = local_lime[0][0] if local_lime else None
+        if top_feature == '<PAD>':
+            print(f"Sample {count}: Top feature is <PAD>, likely benign file.")
+        else:
+            print(f"Sample {count}: Local LIME (top features):", local_lime)

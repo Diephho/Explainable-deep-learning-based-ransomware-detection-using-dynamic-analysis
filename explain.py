@@ -45,13 +45,14 @@ def shap_explain_global(cnn_model, X_background, X_test, id2token):
         explainer = shap.KernelExplainer(f, X_background[:50])
         shap_vals = explainer.shap_values(X_test[:20])
     sv = shap_vals[1]  # cho lớp ransomware
+    X_display = X_test[:sv.shape[0]]
 
     # Tính mean |SHAP| theo nhóm
     avg_api   = np.abs(sv[:,:MAX_LEN_API]).mean()
     avg_dll   = np.abs(sv[:,MAX_LEN_API:MAX_LEN_API+MAX_LEN_DLL]).mean()
     avg_mutex = np.abs(sv[:,-MAX_LEN_MUTEX:]).mean()
 
-    shap.summary_plot(sv, X_test, feature_names=[id2token.get(i, f"<UNK_{i}>") for i in range(SEQ_LEN)])
+    shap.summary_plot(sv, X_display, feature_names=[id2token.get(i, f"<UNK_{i}>") for i in range(SEQ_LEN)])
     return {"api_mean_abs_shap": avg_api,
             "dll_mean_abs_shap": avg_dll,
             "mutex_mean_abs_shap": avg_mutex}
@@ -75,5 +76,20 @@ if __name__ == "__main__":
     print("Global SHAP:", global_shap)
 
     # 5. Local LIME
-    local_lime = lime_explain_instance(cnn_model, X_test[0], id2token)
-    print("Local LIME (top features):", local_lime)
+    pad_token_id = 0  # hoặc đọc từ token2id['<PAD>'] nếu có
+
+    for count, X_test_i in enumerate(X_test, 1):
+        # Bỏ các token ID là <PAD>
+        tokens_without_pad = [x for x in X_test_i if x != pad_token_id]
+        
+        if not tokens_without_pad:
+            print(f"Sample {count}: Empty after removing PAD, likely benign file.")
+            continue
+
+        local_lime = lime_explain_instance(cnn_model, tokens_without_pad, id2token)
+
+        top_feature = local_lime[0][0] if local_lime else None
+        if top_feature == '<PAD>':
+            print(f"Sample {count}: Top feature is <PAD>, likely benign file.")
+        else:
+            print(f"Sample {count}: Local LIME (top features):", local_lime)
