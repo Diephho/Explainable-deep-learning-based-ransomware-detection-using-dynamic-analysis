@@ -5,39 +5,11 @@ import subprocess
 # Đường dẫn thư mục chứa file mã độc
 dataset_benign_folder = './reports/benign'
 dataset_ransomware_folder = './reports/ransomware'
+dataset_malware_folder = './reports/malware'
 output_folder = './reports/'
 
 # Tạo thư mục lưu report nếu chưa có
 os.makedirs(output_folder, exist_ok=True)
-
-# Hàm thực thi cuckoorunner.py và lưu report JSON
-def run_cuckoo_and_extract(filepath):
-    # Neu la ransom
-    # output_folder='./reports/ransomware'
-    # Neu la benign
-    # output_folder='./reports/benign'
-    filename = os.path.basename(filepath)
-    name_no_ext = os.path.splitext(filename)[0]
-    output_file = os.path.join(output_folder, f'report_{name_no_ext}.json')
-
-    try:
-        # Chạy script cuckoorunner.py và lấy output
-        result = subprocess.run(
-            ['python3', 'cuckoorunner.py', filepath],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=300  # 5 phút timeout
-        )
-
-        if result.returncode != 0:
-            print(f"[!] Lỗi khi chạy {filename}: {result.stderr.decode()}")
-            return
-
-        output_path=f"./reports/report_{name_no_ext}.json"
-        extract_fields(output_path)
-
-    except subprocess.TimeoutExpired:
-        print(f"[!] Timeout với {filename}")
 
 # Hàm trích xuất dll, api, mutex
 def extract_fields(report_path, check):
@@ -78,8 +50,12 @@ def extract_fields(report_path, check):
             os.makedirs('./attributes/ransomware', exist_ok=True)
             attr_output_path = f'./attributes/ransomware/extract_{report_file}.json'
         else:
-            os.makedirs('./attributes/benign', exist_ok=True)
-            attr_output_path = f'./attributes/benign/extract_{report_file}.json'
+            if check == 2:
+                os.makedirs('./attributes/malware', exist_ok=True)
+                attr_output_path = f'./attributes/malware/extract_{report_file}.json'
+            else:
+                os.makedirs('./attributes/benign', exist_ok=True)
+                attr_output_path = f'./attributes/benign/extract_{report_file}.json'
         with open(attr_output_path, 'w') as f:
             json.dump(attributes, f, indent=4)
 
@@ -88,13 +64,6 @@ def extract_fields(report_path, check):
 
     except Exception as e:
         print(f"[!] Lỗi đọc hoặc phân tích report {report_path}: {e}")
-
-# Lặp qua từng file .exe và chạy
-#for file in os.listdir(dataset_folder):
-#    if file.endswith('.exe'):
-#        full_path = os.path.join(dataset_folder, file)
-#        run_cuckoo_and_extract(full_path)
-# Chỗ này mở ra nếu muốn chạy flow lớn
 
 for filename in os.listdir(dataset_benign_folder):
     if filename.endswith('.json'):
@@ -105,3 +74,8 @@ for filename in os.listdir(dataset_ransomware_folder):
     if filename.endswith('.json'):
         full_path = os.path.join(dataset_ransomware_folder, filename)
         extract_fields(full_path,1)
+
+for filename in os.listdir(dataset_malware_folder):
+    if filename.endswith('.json'):
+        full_path = os.path.join(dataset_malware_folder, filename)
+        extract_fields(full_path,2)

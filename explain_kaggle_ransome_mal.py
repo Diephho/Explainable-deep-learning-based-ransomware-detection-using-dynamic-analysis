@@ -6,7 +6,7 @@ from lime.lime_text import LimeTextExplainer
 import shap
 from data_utils import prepare_sequences
 from model import model as build_model
-from config import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
+from config_ransome_mal import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
 from sklearn.metrics import classification_report, confusion_matrix
 
 def build_id2token(token2id):
@@ -17,7 +17,7 @@ def build_id2token(token2id):
 
 
 def lime_explain_instance(cnn_model, sequence, id2token, num_features=10):
-    explainer = LimeTextExplainer(class_names=["benign","ransomware"], split_expression=r"\s+")
+    explainer = LimeTextExplainer(class_names=["malware","ransomware"], split_expression=r"\s+")
     def predict_proba(texts):
         seqs = []
         for t in texts:
@@ -60,18 +60,18 @@ def shap_explain_global(cnn_model, X_background, X_test, id2token):
 
 if __name__ == "__main__":
     # 1. Load token2id và build id2token
-    token2id = json.load(open("/kaggle/input/xran-demo/token2id.json", encoding="utf-8"))
+    token2id = json.load(open("/kaggle/input/xran-demo/token2id_ransome_mal.json", encoding="utf-8"))
     id2token = build_id2token(token2id)
 
     # 2. Khởi tạo và build model để load_weights
     cnn_model = build_model(vocab_size=len(token2id)+1)
     cnn_model.build((None, SEQ_LEN))
-    cnn_model.load_weights("/kaggle/input/xran-demo/best_model.weights.h5")
+    cnn_model.load_weights("/kaggle/input/xran-demo/best_model_ransome_mal.weights.h5")
 
     # 3. Chuẩn bị dữ liệu SHAP & LIME
-    X_background = np.load("/kaggle/input/xran-demo/X_background.npy")
-    X_test       = np.load("/kaggle/input/xran-demo/X_test.npy")
-    Y_test       = np.load("/kaggle/input/xran-demo/Y_test.npy")
+    X_background = np.load("/kaggle/input/xran-demo/X_background_ransome_mal.npy")
+    X_test       = np.load("/kaggle/input/xran-demo/X_test_ransome_mal.npy")
+    Y_test       = np.load("/kaggle/input/xran-demo/Y_test_ransome_mal.npy")
 
     # 4. Global SHAP
     global_shap = shap_explain_global(cnn_model, X_background, X_test, id2token)
@@ -84,23 +84,17 @@ if __name__ == "__main__":
         # Bỏ các token ID là <PAD>
         tokens_without_pad = [x for x in X_test_i if x != pad_token_id]
         if not tokens_without_pad:
-            print(f"Sample {count}: Empty after removing PAD, likely benign file.")    
-            if Y_test[count-1]==0:
-                print(f"Sample {count}: Correct prediction")
-            else:
-                print(f"Sample {count}: Incorrect prediction")
-            print("-" * 50)
+            print(f"Sample {count}: Empty after removing PAD, can't predict.")    
             continue
         local_lime = lime_explain_instance(cnn_model, tokens_without_pad, id2token)
 
         # Dự đoán nhãn cho sample này
         pred_proba = cnn_model.predict(np.array([X_test_i]))[0]
-        pred_label = "Ransomware" if pred_proba[1] > 0.5 else "Benign"
+        pred_label = "Ransomware" if pred_proba[1] > 0.5 else "Malware"
 
         top_feature = local_lime[0][0] if local_lime else None
         if top_feature == '<PAD>':
-            print(f"Sample {count}: Top feature is <PAD>, likely benign file.")
-            print(f"Sample {count} is {pred_label} from DeepLearning")
+            print(f"Sample {count}: Top feature is <PAD>, can't predict.")
 
         else:
             print(f"Sample {count}: Local LIME (top features):", local_lime)
@@ -119,14 +113,13 @@ if __name__ == "__main__":
                 print(f"Sample {count}: Incorrect prediction")
             print("-" * 50)
 
-    # 6. F1-score Precision Recall(TPR) FPR(False Positive Rate)
     # Predict toàn bộ
     y_pred_probs = cnn_model.predict(X_test)
     y_pred = (y_pred_probs[:, 1] > 0.5).astype(int)  # lấy xác suất ransomware giống như pred_label
 
     # In báo cáo
     print("[Classification Report on Test Set]")
-    print(classification_report(Y_test, y_pred, digits=4, target_names=["Benign", "Ransomware"]))
+    print(classification_report(Y_test, y_pred, digits=4, target_names=["Malware", "Ransomware"]))
 
     # Confusion Matrix
     tn, fp, fn, tp = confusion_matrix(Y_test, y_pred).ravel()
