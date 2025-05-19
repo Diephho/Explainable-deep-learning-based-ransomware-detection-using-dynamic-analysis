@@ -7,6 +7,7 @@ import shap
 from data_utils import prepare_sequences
 from model import model as build_model
 from config import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
+from sklearn.metrics import classification_report, confusion_matrix
 
 def build_id2token(token2id):
     id2token = {int(idx): tok for tok, idx in token2id.items()}
@@ -70,25 +71,68 @@ if __name__ == "__main__":
     # 3. Chuẩn bị dữ liệu SHAP & LIME
     X_background = np.load("/kaggle/input/xran-demo/X_background.npy")
     X_test       = np.load("/kaggle/input/xran-demo/X_test.npy")
+    Y_test       = np.load("/kaggle/input/xran-demo/Y_test.npy")
 
-    # 4. Global SHAP
-    global_shap = shap_explain_global(cnn_model, X_background, X_test, id2token)
-    print("Global SHAP:", global_shap)
+    # # 4. Global SHAP
+    # global_shap = shap_explain_global(cnn_model, X_background, X_test, id2token)
+    # print("Global SHAP:", global_shap)
 
-    pad_token_id = 0  # hoặc đọc từ token2id['<PAD>'] nếu có
+    # # 5. LIME for Each Sample
+    # pad_token_id = 0
 
-    for count, X_test_i in enumerate(X_test, 1):
-        # Bỏ các token ID là <PAD>
-        tokens_without_pad = [x for x in X_test_i if x != pad_token_id]
+    # for count, X_test_i in enumerate(X_test, 1):
+    #     # Bỏ các token ID là <PAD>
+    #     tokens_without_pad = [x for x in X_test_i if x != pad_token_id]
+    #     if not tokens_without_pad:
+    #         print(f"Sample {count}: Empty after removing PAD, likely benign file.")    
+    #         if Y_test[count-1]==0:
+    #             print(f"Sample {count}: Correct prediction")
+    #         else:
+    #             print(f"Sample {count}: Incorrect prediction")
+    #         print("-" * 50)
+    #         continue
+    #     local_lime = lime_explain_instance(cnn_model, tokens_without_pad, id2token)
+
+    #     # Dự đoán nhãn cho sample này
+    #     pred_proba = cnn_model.predict(np.array([X_test_i]))[0]
+    #     pred_label = "Ransomware" if pred_proba[1] > 0.5 else "Benign"
+
+    #     top_feature = local_lime[0][0] if local_lime else None
+    #     if top_feature == '<PAD>':
+    #         print(f"Sample {count}: Top feature is <PAD>, likely benign file.")
+    #         print(f"Sample {count} is {pred_label} from DeepLearning")
+
+    #     else:
+    #         print(f"Sample {count}: Local LIME (top features):", local_lime)
+    #         print(f"Sample {count}: {pred_label} from prediction")
         
-        if not tokens_without_pad:
-            print(f"Sample {count}: Empty after removing PAD, likely benign file.")
-            continue
+    #     if pred_label == "Ransomware":
+    #         if Y_test[count-1]==1:
+    #             print(f"Sample {count}: Correct prediction")
+    #         else:
+    #             print(f"Sample {count}: Incorrect prediction")
+    #         print("-" * 50)
+    #     else:
+    #         if Y_test[count-1]==0:
+    #             print(f"Sample {count}: Correct prediction")
+    #         else:
+    #             print(f"Sample {count}: Incorrect prediction")
+    #         print("-" * 50)
 
-        local_lime = lime_explain_instance(cnn_model, tokens_without_pad, id2token)
+    # 6. F1-score Precision Recall(TPR) FPR(False Positive Rate)
+    # Predict toàn bộ
+    y_pred_probs = cnn_model.predict(X_test)
+    y_pred = (y_pred_probs[:, 1] > 0.5).astype(int)  # lấy xác suất ransomware giống như pred_label
 
-        top_feature = local_lime[0][0] if local_lime else None
-        if top_feature == '<PAD>':
-            print(f"Sample {count}: Top feature is <PAD>, likely benign file.")
-        else:
-            print(f"Sample {count}: Local LIME (top features):", local_lime)
+    # In báo cáo
+    print("[Classification Report on Test Set]")
+    print(classification_report(Y_test, y_pred, digits=4, target_names=["Benign", "Ransomware"]))
+
+    # Confusion Matrix
+    tn, fp, fn, tp = confusion_matrix(Y_test, y_pred).ravel()
+    tpr = tp / (tp + fn)  # Sensitivity, Recall
+    fpr = fp / (fp + tn)  # Fall-out
+
+    print(f"TPR (Recall): {tpr:.4f}")
+    print(f"FPR: {fpr:.4f}")
+    

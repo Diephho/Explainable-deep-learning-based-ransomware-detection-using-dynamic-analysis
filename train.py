@@ -47,10 +47,23 @@ def main():
         random_state=RANDOM_STATE
     )
 
-    background_size = min(100, X_train.shape[0])
-    X_background = X_train[:background_size]
+    X_background = X_train
     np.save('X_background.npy', X_background)
     np.save('X_test.npy', X_test)
+    np.save('Y_test.npy', y_test)
+
+    X_train, X_validate, y_train, y_validate = train_test_split(
+        X, y,
+        test_size=0.1,
+        stratify=y,
+        random_state=RANDOM_STATE
+    )
+
+    X_background_validate = X_validate
+    np.save('X_background_validate.npy', X_background_validate)
+    np.save('X_validate.npy', X_validate)
+    np.save('Y_validate.npy', y_validate)
+
 
     cnn_model = model(vocab_size=len(token2id) + 1)
     cnn_model.summary()
@@ -61,11 +74,10 @@ def main():
         epochs=EPOCHS,
         batch_size=BATCH_SIZE
     )
-
     cnn_model.save_weights('best_model.weights.h5')
 
-    loss, acc = cnn_model.evaluate(X_test, y_test)
-    print(f"Test loss: {loss:.4f}, Test accuracy: {acc:.4f}")
+    loss, acc = cnn_model.evaluate(X_validate, y_validate)
+    print(f"Validate loss: {loss:.4f}, Validate accuracy: {acc:.4f}")
 
 if __name__ == '__main__':
     main()

@@ -4,8 +4,11 @@ import subprocess
 # Các report để trong reports/benign nếu là lành tính hoặc reports/ransomware nếu là ransomeware
 scripts = [
     "extract_attribute.py",
+    "filter_reports.py",
     "train.py",
-    "explain.py"
+    "train_ransome_mal.py",
+    "explain.py",
+    "explain_ransome_mal.py"
 ]
 
 for script in scripts:

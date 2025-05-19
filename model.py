@@ -25,9 +25,11 @@ def model(vocab_size: int) -> tf.keras.Model:
         # Lớp 2: Convolutional Block - 2 convolutional layers và 2 pooling layers
         # Layer Conv #1
         Conv1D(filters=128, kernel_size=5, activation='relu'),
+        Dropout(0.25),
         MaxPooling1D(pool_size=2),
         # Layer Conv #2
         Conv1D(filters=64, kernel_size=3, activation='relu'),
+        Dropout(0.25),
         MaxPooling1D(pool_size=2),
 
         # Lớp 3: Fully Connected Layer
