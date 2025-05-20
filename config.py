@@ -12,3 +12,9 @@ BATCH_SIZE = 64
 EPOCHS = 10
 VALIDATION_SPLIT = 0.1
 RANDOM_STATE = 42
+
+# Decision Tree hyper-parameters
+DT_MAX_DEPTH    = None    # hoặc số nguyên, ví dụ 10
+DT_MIN_SAMPLES_SPLIT = 2
+DT_MIN_SAMPLES_LEAF  = 1
+DT_CRITERION        = "gini"  # hoặc "entropy"
