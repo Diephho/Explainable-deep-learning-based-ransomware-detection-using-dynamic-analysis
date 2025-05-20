@@ -111,6 +111,36 @@ def shap_explain_global_malware(cnn_model, X_background, X_test, id2token, top_n
     plot_top_shap_bar(top_tokens)
     return top_tokens
 
+def plot_lime_top_5_5(local_lime, count, pred_label, pred_proba):
+    # 1. Tách 2 nhóm
+    pos = [(f, w) for f, w in local_lime if w > 0]
+    neg = [(f, w) for f, w in local_lime if w < 0]
+
+    # 2. Sort theo |weight| giảm dần và lấy top 5 mỗi nhóm
+    pos = sorted(pos, key=lambda x: abs(x[1]), reverse=True)[:5]
+    neg = sorted(neg, key=lambda x: abs(x[1]), reverse=True)[:5]
+
+    # 3. Xen kẽ: bắt đầu bằng pos[0], rồi neg[0], v.v.
+    interleaved = []
+    for i in range(max(len(pos), len(neg))):
+        if i < len(pos):
+            interleaved.append(pos[i])
+        if i < len(neg):
+            interleaved.append(neg[i])
+
+    # 4. Tách lại để vẽ
+    features, weights = zip(*interleaved)
+    colors = ['green' if w > 0 else 'red' for w in weights]
+
+    # 5. Vẽ
+    plt.figure(figsize=(8, 4))
+    plt.barh(features[::-1], weights[::-1], color=colors[::-1])  # Đảo để mạnh nhất nằm trên
+    plt.axvline(x=0, color='black', linewidth=0.8)
+    plt.xlabel('LIME Weight')
+    plt.title(f'Sample {count}: {pred_label} (prob={pred_proba[1]:.5f})')
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == "__main__":
     # 1. Load token2id và build id2token
     token2id = json.load(open("./token2id_ransome_mal.json", encoding="utf-8"))
@@ -172,13 +202,4 @@ if __name__ == "__main__":
             else:
                 print(f"Sample {count}: Incorrect prediction")
             print("-" * 50)
-        # Plot horizontal bar chart
-        features, weights = zip(*local_lime)
-        colors = ['green' if w > 0 else 'red' for w in weights]
-        plt.figure(figsize=(8, 4))
-        plt.barh(features, weights, color=colors)
-        plt.axvline(x=0, color='black', linewidth=0.8)  # thêm trục dọc zero
-        plt.xlabel('LIME Weight')
-        plt.title(f'Sample {count}: {pred_label} (prob={pred_proba[1]:.5f})')
-        plt.tight_layout()
-        plt.show()
+        plot_lime_top_5_5(local_lime, count, pred_label, pred_proba)
