@@ -9,7 +9,6 @@ from model import model as build_model
 from config_ransome_mal import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.metrics import log_loss, accuracy_score
-import matplotlib.pyplot as plt
 
 def build_id2token(token2id):
     id2token = {int(idx): tok for tok, idx in token2id.items()}
@@ -37,17 +36,7 @@ def lime_explain_instance(cnn_model, sequence, id2token, num_features=10):
     exp = explainer.explain_instance(text_input, predict_proba, num_features=num_features)
     return [(id2token[int(tok)], weight) for tok, weight in exp.as_list()]
 
-def plot_top_shap_bar(top_tokens):
-    features, weights = zip(*top_tokens)
-    colors = ['blue' if w < 0 else 'red' for w in weights]  # ✅ Đúng như yêu cầu của Khang
-    plt.figure(figsize=(8, 4))
-    plt.barh(features, weights, color=colors)
-    plt.xlabel('Mean SHAP Value')
-    plt.title('Global SHAP (Top Features)')
-    plt.tight_layout()
-    plt.show()
-
-def shap_explain_global_ransome(cnn_model, X_background, X_test, id2token, top_n=10):
+def shap_explain_global(cnn_model, X_background, X_test, id2token):
     try:
         # Dùng GradientExplainer cho TF2.x
         explainer = shap.GradientExplainer(cnn_model, X_background)
@@ -57,59 +46,18 @@ def shap_explain_global_ransome(cnn_model, X_background, X_test, id2token, top_n
         f = lambda x: cnn_model.predict(x)
         explainer = shap.KernelExplainer(f, X_background[:50])
         shap_vals = explainer.shap_values(X_test[:20])
-    
-    # SHAP value cho lớp ransomware (index 1)
-    sv = shap_vals[1]  # shape: (num_samples, seq_len)
+    sv = shap_vals[1]  # cho lớp ransomware
     X_display = X_test[:sv.shape[0]]
 
-    # 1. Tính mean |SHAP| theo từng token position
-    mean_abs_shap = np.abs(sv).mean(axis=0)  # shape: (seq_len,)
+    # Tính mean |SHAP| theo nhóm
+    avg_api   = np.abs(sv[:,:MAX_LEN_API]).mean()
+    avg_dll   = np.abs(sv[:,MAX_LEN_API:MAX_LEN_API+MAX_LEN_DLL]).mean()
+    avg_mutex = np.abs(sv[:,-MAX_LEN_MUTEX:]).mean()
 
-    # 2. Ánh xạ token id -> tên
-    token_ids = X_display[0]  # Lấy 1 sample để biết thứ tự token IDs ở mỗi position
-    feature_names = [id2token.get(i, f"<UNK_{i}>") for i in token_ids]
-
-    # 3. Ghép tên và SHAP vào, lấy top N
-    token_shap_pairs = list(zip(feature_names, mean_abs_shap))
-    token_shap_pairs.sort(key=lambda x: x[1], reverse=True)
-    top_tokens = token_shap_pairs[:top_n]
-
-    # 4. Hiển thị SHAP summary plot (tuỳ chọn)
-    shap.summary_plot(sv, X_display, feature_names=feature_names)
-    plot_top_shap_bar(top_tokens)
-    return top_tokens
-
-def shap_explain_global_malware(cnn_model, X_background, X_test, id2token, top_n=10):
-    try:
-        # Dùng GradientExplainer cho TF2.x
-        explainer = shap.GradientExplainer(cnn_model, X_background)
-        shap_vals = explainer.shap_values(X_test)
-    except Exception:
-        # Fallback: KernelExplainer (chậm hơn)
-        f = lambda x: cnn_model.predict(x)
-        explainer = shap.KernelExplainer(f, X_background[:50])
-        shap_vals = explainer.shap_values(X_test[:20])
-    
-    # SHAP value cho lớp ransomware (index 1)
-    sv = shap_vals[0]  # shape: (num_samples, seq_len)
-    X_display = X_test[:sv.shape[0]]
-
-    # 1. Tính mean |SHAP| theo từng token position
-    mean_abs_shap = np.abs(sv).mean(axis=0)  # shape: (seq_len,)
-
-    # 2. Ánh xạ token id -> tên
-    token_ids = X_display[0]  # Lấy 1 sample để biết thứ tự token IDs ở mỗi position
-    feature_names = [id2token.get(i, f"<UNK_{i}>") for i in token_ids]
-
-    # 3. Ghép tên và SHAP vào, lấy top N
-    token_shap_pairs = list(zip(feature_names, mean_abs_shap))
-    token_shap_pairs.sort(key=lambda x: x[1], reverse=True)
-    top_tokens = token_shap_pairs[:top_n]
-
-    # 4. Hiển thị SHAP summary plot (tuỳ chọn)
-    shap.summary_plot(sv, X_display, feature_names=feature_names)
-    plot_top_shap_bar(top_tokens)
-    return top_tokens
+    shap.summary_plot(sv, X_display, feature_names=[id2token.get(i, f"<UNK_{i}>") for i in range(SEQ_LEN)])
+    return {"api_mean_abs_shap": avg_api,
+            "dll_mean_abs_shap": avg_dll,
+            "mutex_mean_abs_shap": avg_mutex}
 
 if __name__ == "__main__":
     # 1. Load token2id và build id2token
@@ -126,17 +74,9 @@ if __name__ == "__main__":
     X_test       = np.load("./X_test_ransome_mal.npy")
     Y_test       = np.load("./Y_test_ransome_mal.npy")
 
-    # 4. Global SHAP: top 10 token theo ảnh hưởng toàn tập
-    # global_shap_ransome = shap_explain_global_ransome(cnn_model, X_background, X_test, id2token)
-    # print("Global SHAP (top features) decision ransomeware:")
-    # for token, value in global_shap_ransome:
-    #     print(f"{token}: {value:.6f}")
-    # print("-" * 50)
-    global_shap_malware = shap_explain_global_malware(cnn_model, X_background, X_test, id2token)
-    print("Global SHAP (top features) decision malware:")
-    for token, value in global_shap_malware:
-        print(f"{token}: {value:.6f}")
-    print("-" * 50)
+    # 4. Global SHAP
+    global_shap = shap_explain_global(cnn_model, X_background, X_test, id2token)
+    print("Global SHAP:", global_shap)
 
     # 5. Local LIME
     pad_token_id = 0
@@ -172,13 +112,24 @@ if __name__ == "__main__":
             else:
                 print(f"Sample {count}: Incorrect prediction")
             print("-" * 50)
-        # Plot horizontal bar chart
-        features, weights = zip(*local_lime)
-        colors = ['green' if w > 0 else 'red' for w in weights]
-        plt.figure(figsize=(8, 4))
-        plt.barh(features, weights, color=colors)
-        plt.axvline(x=0, color='black', linewidth=0.8)  # thêm trục dọc zero
-        plt.xlabel('LIME Weight')
-        plt.title(f'Sample {count}: {pred_label} (prob={pred_proba[1]:.5f})')
-        plt.tight_layout()
-        plt.show()
+
+    # 6. Test Acc and Loss
+    # Predict toàn bộ
+    y_pred_probs = cnn_model.predict(X_test)
+    y_pred = (y_pred_probs[:, 1] > 0.5).astype(int)
+    loss = log_loss(Y_test, y_pred_probs)
+    acc = accuracy_score(Y_test, y_pred)
+    print(f"Test loss: {loss:.4f}, Test accuracy: {acc:.4f}")
+
+    # 7. F1-score Precision Recall(TPR) FPR(False Positive Rate)
+    # In báo cáo
+    print("[Classification Report on Test Set]")
+    print(classification_report(Y_test, y_pred, digits=4, target_names=["Malware", "Ransomware"]))
+
+    # Confusion Matrix
+    tn, fp, fn, tp = confusion_matrix(Y_test, y_pred).ravel()
+    tpr = tp / (tp + fn)  # Sensitivity, Recall
+    fpr = fp / (fp + tn)  # Fall-out
+
+    print(f"TPR (Recall): {tpr:.4f}")
+    print(f"FPR: {fpr:.4f}")

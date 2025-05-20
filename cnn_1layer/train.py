@@ -3,12 +3,12 @@ import os
 import json
 import numpy as np
 from sklearn.model_selection import train_test_split
-from config_ransome_mal import RANDOM_STATE, VALIDATION_SPLIT, BATCH_SIZE, EPOCHS
+from config import RANDOM_STATE, VALIDATION_SPLIT, BATCH_SIZE, EPOCHS
 from data_utils import build_token_dict, prepare_sequences
 from model import model
 from sklearn.metrics import accuracy_score, recall_score, f1_score, confusion_matrix
 
-def load_reports(ransom_dir: str, mal_dir: str):
+def load_reports(ransom_dir: str, benign_dir: str):
     reports, labels = [], []
     for fname in os.listdir(ransom_dir):
         if not fname.lower().endswith('.json'):
@@ -18,10 +18,10 @@ def load_reports(ransom_dir: str, mal_dir: str):
             features = json.load(f)
         reports.append(features)
         labels.append(1)
-    for fname in os.listdir(mal_dir):
+    for fname in os.listdir(benign_dir):
         if not fname.lower().endswith('.json'):
             continue
-        full = os.path.join(mal_dir, fname)
+        full = os.path.join(benign_dir, fname)
         with open(full, 'r', encoding='utf-8') as f:
             features = json.load(f)
         reports.append(features)
@@ -29,12 +29,12 @@ def load_reports(ransom_dir: str, mal_dir: str):
     return reports, labels
 
 def main():
-    ransom_dir = 'attributes/ransomware'
-    mal_dir = 'attributes/malware'
-    reports, labels = load_reports(ransom_dir, mal_dir)
+    ransom_dir = '../attributes/ransomware'
+    benign_dir = '../attributes/benign'
+    reports, labels = load_reports(ransom_dir, benign_dir)
 
     token2id  = build_token_dict(reports)
-    with open('token2id_ransome_mal.json', 'w', encoding='utf-8') as f:
+    with open('token2id.json', 'w', encoding='utf-8') as f:
         json.dump(token2id, f, indent=4)
 
     sequences = prepare_sequences(reports, token2id)
@@ -49,9 +49,9 @@ def main():
     )
 
     X_background = X_train
-    np.save('X_background_ransome_mal.npy', X_background)
-    np.save('X_test_ransome_mal.npy', X_test)
-    np.save('Y_test_ransome_mal.npy', y_test)
+    np.save('X_background.npy', X_background)
+    np.save('X_test.npy', X_test)
+    np.save('Y_test.npy', y_test)
 
     X_train, X_validate, y_train, y_validate = train_test_split(
         X, y,
@@ -61,9 +61,9 @@ def main():
     )
 
     X_background_validate = X_validate
-    np.save('X_background_validate_ransome_mal.npy', X_background_validate)
-    np.save('X_validate_ransome_mal.npy', X_validate)
-    np.save('Y_validate_ransome_mal.npy', y_validate)
+    np.save('X_background_validate.npy', X_background_validate)
+    np.save('X_validate.npy', X_validate)
+    np.save('Y_validate.npy', y_validate)
 
 
     cnn_model = model(vocab_size=len(token2id) + 1)
@@ -75,11 +75,11 @@ def main():
         epochs=EPOCHS,
         batch_size=BATCH_SIZE
     )
+    cnn_model.save_weights('best_model.weights.h5')
 
-    cnn_model.save_weights('best_model_ransome_mal.weights.h5')
+    loss, acc = cnn_model.evaluate(X_validate, y_validate)
+    print(f"Validate loss: {loss:.4f}, Validate accuracy: {acc:.4f}")
 
-    loss, acc = cnn_model.evaluate(X_test, y_test)
-    print(f"Test loss: {loss:.4f}, Test accuracy: {acc:.4f}")
     print(f"{'-'*50}")
     y_pred_probs = cnn_model.predict(X_test)
     y_pred_labels = (y_pred_probs[:, 1] > 0.5).astype(int)  # Chỉ số 1 là "Ransomware"
@@ -92,6 +92,6 @@ def main():
     print(f"Test Recall (TPR): {recall:.4f}")
     print(f"Test FPR      : {fpr:.4f}")
     print(f"Test F1-Score : {f1:.4f}")
-
+    
 if __name__ == '__main__':
     main()

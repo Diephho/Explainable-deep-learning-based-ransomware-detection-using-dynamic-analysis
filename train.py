@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from config import RANDOM_STATE, VALIDATION_SPLIT, BATCH_SIZE, EPOCHS
 from data_utils import build_token_dict, prepare_sequences
 from model import model
+from sklearn.metrics import accuracy_score, recall_score, f1_score, confusion_matrix
 
 def load_reports(ransom_dir: str, benign_dir: str):
     reports, labels = [], []
@@ -78,6 +79,18 @@ def main():
 
     loss, acc = cnn_model.evaluate(X_validate, y_validate)
     print(f"Validate loss: {loss:.4f}, Validate accuracy: {acc:.4f}")
-
+    print(f"{'-'*50}")
+    y_pred_probs = cnn_model.predict(X_test)
+    y_pred_labels = (y_pred_probs[:, 1] > 0.5).astype(int)  # Chỉ số 1 là "Ransomware"
+    tn, fp, fn, tp = confusion_matrix(y_test, y_pred_labels).ravel()
+    accuracy = accuracy_score(y_test, y_pred_labels)
+    recall = recall_score(y_test, y_pred_labels)       # TPR
+    f1 = f1_score(y_test, y_pred_labels)
+    fpr = fp / (fp + tn) if (fp + tn) > 0 else 0        # FPR = False Positive Rate
+    print(f"Test Accuracy : {accuracy:.4f}")
+    print(f"Test Recall (TPR): {recall:.4f}")
+    print(f"Test FPR      : {fpr:.4f}")
+    print(f"Test F1-Score : {f1:.4f}")
+    
 if __name__ == '__main__':
     main()

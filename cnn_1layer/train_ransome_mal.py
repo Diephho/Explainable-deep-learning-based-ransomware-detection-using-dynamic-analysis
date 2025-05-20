@@ -29,8 +29,8 @@ def load_reports(ransom_dir: str, mal_dir: str):
     return reports, labels
 
 def main():
-    ransom_dir = 'attributes/ransomware'
-    mal_dir = 'attributes/malware'
+    ransom_dir = '../attributes/ransomware'
+    mal_dir = '../attributes/malware'
     reports, labels = load_reports(ransom_dir, mal_dir)
 
     token2id  = build_token_dict(reports)
