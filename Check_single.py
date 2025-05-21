@@ -8,7 +8,7 @@ from model import model as build_model
 from config import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
 import numpy as np
 from data_utils import prepare_sequences
-from explain import build_id2token, lime_explain_instance
+from explain import build_id2token, lime_explain_instance, plot_lime_top_5_5
 
 CUCKOO_API = "http://192.168.141.128:8090"
 def build_id2token(token2id):
@@ -138,6 +138,7 @@ def check_and_explain(report_extract_path):
     print("\nTop LIME features:")
     for token, weight in lime_result:
         print(f"{token}: {weight:.4f}")
+    plot_lime_top_5_5(lime_result, 1, label, proba)
 
 def main():
     if len(sys.argv) != 3:
