@@ -42,7 +42,7 @@ def main():
     y = np.array(labels)  # ✅ KHÔNG one-hot
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
+        X_train, y_train,
         test_size=0.1,
         stratify=y,
         random_state=RANDOM_STATE
@@ -54,17 +54,11 @@ def main():
     np.save('Y_test.npy', y_test)
 
     X_train, X_validate, y_train, y_validate = train_test_split(
-        X, y,
+        X_train, y_train,
         test_size=0.1,
         stratify=y,
         random_state=RANDOM_STATE
     )
-
-    X_background_validate = X_validate
-    np.save('X_background_validate.npy', X_background_validate)
-    np.save('X_validate.npy', X_validate)
-    np.save('Y_validate.npy', y_validate)
-
 
     cnn_model = model(vocab_size=len(token2id) + 1)
     cnn_model.summary()

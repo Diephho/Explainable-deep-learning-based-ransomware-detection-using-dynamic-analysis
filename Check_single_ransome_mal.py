@@ -8,7 +8,8 @@ from model import model as build_model
 from config import MAX_LEN_API, MAX_LEN_DLL, MAX_LEN_MUTEX, SEQ_LEN
 import numpy as np
 from data_utils import prepare_sequences
-from explain_ransome_mal import build_id2token, lime_explain_instance, plot_lime_top_5_5
+from explain_ransome_mal import build_id2token, lime_explain_instance
+import matplotlib.pyplot as plt
 
 CUCKOO_API = "http://192.168.141.128:8090"
 def build_id2token(token2id):
@@ -112,65 +113,66 @@ def check_valid(report_extract_path):
 
 def check_and_explain(report_extract_path):
     if check_valid(report_extract_path) != True:
-        return
+        return None
+
     # 1. Load token2id
     with open('token2id_ransome_mal.json', encoding='utf-8') as f:
         token2id = json.load(f)
+
     # 2. Handle data in report_path
-    reports=[]
     with open(report_extract_path, 'r', encoding='utf-8') as f:
         features = json.load(f)
-    reports.append(features)
+    reports = [features]
     sequence = prepare_sequences(reports, token2id)
-    X_input=np.array(sequence[0])
+    X_input = np.array(sequence)
+
     # 3. Load Model
     cnn_model = build_model(vocab_size=len(token2id)+1)
     cnn_model.build((None, SEQ_LEN))
     cnn_model.load_weights("./best_model_ransome_mal.weights.h5")
-    proba = cnn_model.predict(X_input)[0]
+
     # 4. Prediction
+    proba = cnn_model.predict(X_input)[0]
     label = "Ransomware" if proba[1] > 0.5 else "Malware"
-    print(f"\nPrediction: {label}")
+    confidence = float(proba[1] if label == "Ransomware" else proba[0])
+
     # 5. Explain
-    tokens_no_pad = [x for x in sequence if x != 0]
+    tokens_no_pad = [x for x in sequence[0] if x != 0]
     id2token = build_id2token(token2id)
     lime_result = lime_explain_instance(cnn_model, tokens_no_pad, id2token)
-    print("\nTop LIME features:")
-    for token, weight in lime_result:
-        print(f"{token}: {weight:.4f}")
-    plot_lime_top_5_5(lime_result, 1, label, proba)
 
-def main():
-    if len(sys.argv) != 3:
-        print("Usage: python3 Check_single_ransome_mal.py <file_path> <type>")
-        print("\n<type> tùy vào loại file bạn muốn phân tích:")
-        print("  [1] Phân tích file thực thi (.exe)")
-        print("  [2] Phân tích file báo cáo (report file)")
-        print("  [3] Phân tích file thuộc tính (attribute file)")
-        sys.exit(1)
+    return label, confidence, lime_result
 
-    if sys.argv[2] == 1:
-        file_path = sys.argv[1]
-        if not os.path.isfile(file_path):
-            print("[-] File not found.")
-            sys.exit(1)
+def plot_lime_top_5_5_to_file(local_lime, count, pred_label, pred_proba, save_path):
+    # 1. Tách 2 nhóm
+    pos = [(f, w) for f, w in local_lime if w > 0]
+    neg = [(f, w) for f, w in local_lime if w < 0]
 
-        filename = os.path.basename(file_path)
-        task_id = submit_sample(file_path)
-        wait_for_report(task_id)
+    # 2. Sort theo |weight| giảm dần và lấy top 5 mỗi nhóm
+    pos = sorted(pos, key=lambda x: abs(x[1]), reverse=True)[:5]
+    neg = sorted(neg, key=lambda x: abs(x[1]), reverse=True)[:5]
 
-        os.makedirs("checkfile", exist_ok=True)
-        os.makedirs("checkfile/reports", exist_ok=True)
-        report_path = f"checkfile/reports/report_{filename}.json"
-        download_report(task_id, report_path)
+    # 3. Xen kẽ: bắt đầu bằng pos[0], rồi neg[0], v.v.
+    interleaved = []
+    for i in range(max(len(pos), len(neg))):
+        if i < len(pos):
+            interleaved.append(pos[i])
+        if i < len(neg):
+            interleaved.append(neg[i])
+
+    # 4. Tách lại để vẽ
+    features, weights = zip(*interleaved)
+    colors = ['green' if w > 0 else 'red' for w in weights]
+    if isinstance(pred_proba, (list, tuple)):
+        prob_display = pred_proba[1]
     else:
-        if sys.argv[2] == 2:
-            report_path = sys.argv[1]
-            attribute_path = f"checkfile/reports/report_{filename}.json"
-            extract_fields(report_path, attribute_path)
-        else:
-            attribute_path = sys.argv[1]
-    check_and_explain(attribute_path)
-
-if __name__ == "__main__":
-    main()
+        prob_display = pred_proba
+    # 5. Vẽ và lưu file
+    plt.figure(figsize=(8, 4))
+    plt.barh(features[::-1], weights[::-1], color=colors[::-1])  # Đảo để mạnh nhất nằm trên
+    plt.axvline(x=0, color='black', linewidth=0.8)
+    plt.xlabel('LIME Weight')
+    plt.title(f'Sample {count}: {pred_label} (prob={prob_display:.5f})')
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()

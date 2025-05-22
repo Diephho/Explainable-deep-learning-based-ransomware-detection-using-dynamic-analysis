@@ -32,84 +32,108 @@ def lime_explain_instance(cnn_model, sequence, id2token, num_features=20):
             seqs.append(tokens)
         X = np.array(seqs)
         probs = cnn_model.predict(X)
-        return np.hstack([1 - probs, probs])
+        return probs
     text_input = " ".join(str(int(x)) for x in sequence)
     exp = explainer.explain_instance(text_input, predict_proba, num_features=num_features)
     return [(id2token[int(tok)], weight) for tok, weight in exp.as_list()]
 
-def plot_top_shap_bar(top_tokens):
+def plot_top_shap_bar(top_tokens, type):
     features, weights = zip(*top_tokens)
-    colors = ['blue' if w < 0 else 'red' for w in weights]  # ✅ Đúng như yêu cầu của Khang
-    plt.figure(figsize=(8, 4))
-    plt.barh(features, weights, color=colors)
-    plt.xlabel('Mean SHAP Value')
-    plt.title('Global SHAP (Top Features)')
+    colors = ['red' if w > 0 else 'blue' for w in weights]
+    
+    plt.figure(figsize=(10, 6))
+    bars = plt.barh(features, weights, color=colors, edgecolor='black')
+
+    # Vẽ đường x = 0
+    plt.axvline(x=0, color='gray', linestyle='--', linewidth=1)
+
+    # Chú giải
+    red_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
+    blue_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Benign')
+    plt.legend(handles=[red_patch, blue_patch], loc='lower right')
+
+    # Căn chỉnh
+    plt.xlabel('Mean SHAP Value', fontsize=12)
+    plt.title(f'Global SHAP Values for {type} Prediction', fontsize=14)
+    plt.gca().invert_yaxis()  # Đảo ngược trục y để giá trị lớn nằm trên
+    plt.grid(axis='x', linestyle='--', alpha=0.5)
     plt.tight_layout()
     plt.show()
 
+
 def shap_explain_global_ransome(cnn_model, X_background, X_test, id2token, top_n=10):
     try:
-        # Dùng GradientExplainer cho TF2.x
         explainer = shap.GradientExplainer(cnn_model, X_background)
         shap_vals = explainer.shap_values(X_test)
     except Exception:
-        # Fallback: KernelExplainer (chậm hơn)
         f = lambda x: cnn_model.predict(x)
         explainer = shap.KernelExplainer(f, X_background[:50])
         shap_vals = explainer.shap_values(X_test[:20])
-    
-    # SHAP value cho lớp ransomware (index 1)
+
+    # SHAP values cho lớp ransomware (index 1)
     sv = shap_vals[1]  # shape: (num_samples, seq_len)
-    X_display = X_test[:sv.shape[0]]
+    X_display = X_test[:sv.shape[0]]  # cùng số sample
 
-    # 1. Tính mean |SHAP| theo từng token position
-    mean_abs_shap = np.abs(sv).mean(axis=0)  # shape: (seq_len,)
+    # Mean SHAP giữ nguyên dấu
+    mean_shap = sv.mean(axis=0)
 
-    # 2. Ánh xạ token id -> tên
-    token_ids = X_display[0]  # Lấy 1 sample để biết thứ tự token IDs ở mỗi position
-    feature_names = [id2token.get(i, f"<UNK_{i}>") for i in token_ids]
+    # Lấy token ID theo từng vị trí trung bình và ánh xạ sang token
+    token_ids = X_display[:, 0:sv.shape[1]].mean(axis=0).astype(int)
+    feature_names = [id2token.get(i, f"Pos_{idx}") for idx, i in enumerate(token_ids)]
 
-    # 3. Ghép tên và SHAP vào, lấy top N
-    token_shap_pairs = list(zip(feature_names, mean_abs_shap))
-    token_shap_pairs.sort(key=lambda x: x[1], reverse=True)
-    top_tokens = token_shap_pairs[:top_n]
+    # Ghép tên + SHAP value
+    token_shap_pairs = list(zip(feature_names, mean_shap))
 
-    # 4. Hiển thị SHAP summary plot (tuỳ chọn)
+    # Top đặc trưng đẩy về ransomware
+    top_pos = sorted(token_shap_pairs, key=lambda x: x[1], reverse=True)[:top_n]
+
+    # Top đặc trưng đẩy về benign
+    top_neg = sorted(token_shap_pairs, key=lambda x: x[1])[:top_n]
+
+    # Vẽ tổng quan SHAP
     shap.summary_plot(sv, X_display, feature_names=feature_names)
-    plot_top_shap_bar(top_tokens)
-    return top_tokens
+
+    # Bar plot top tích cực và tiêu cực (nếu bạn định vẽ luôn)
+    plot_top_shap_bar(top_pos + top_neg,'ransomware')  # hoặc tách riêng nếu muốn
+
+    return top_pos+top_neg
 
 def shap_explain_global_benign(cnn_model, X_background, X_test, id2token, top_n=10):
     try:
-        # Dùng GradientExplainer cho TF2.x
         explainer = shap.GradientExplainer(cnn_model, X_background)
         shap_vals = explainer.shap_values(X_test)
     except Exception:
-        # Fallback: KernelExplainer (chậm hơn)
         f = lambda x: cnn_model.predict(x)
         explainer = shap.KernelExplainer(f, X_background[:50])
         shap_vals = explainer.shap_values(X_test[:20])
-    
-    # SHAP value cho lớp ransomware (index 1)
+
+    # SHAP values cho lớp benign (index 0)
     sv = shap_vals[0]  # shape: (num_samples, seq_len)
-    X_display = X_test[:sv.shape[0]]
+    X_display = X_test[:sv.shape[0]]  # cùng số sample
 
-    # 1. Tính mean |SHAP| theo từng token position
-    mean_abs_shap = np.abs(sv).mean(axis=0)  # shape: (seq_len,)
+    # Mean SHAP giữ nguyên dấu
+    mean_shap = sv.mean(axis=0)
 
-    # 2. Ánh xạ token id -> tên
-    token_ids = X_display[0]  # Lấy 1 sample để biết thứ tự token IDs ở mỗi position
-    feature_names = [id2token.get(i, f"<UNK_{i}>") for i in token_ids]
+    # Lấy token ID theo từng vị trí trung bình và ánh xạ sang token
+    token_ids = X_display[:, 0:sv.shape[1]].mean(axis=0).astype(int)
+    feature_names = [id2token.get(i, f"Pos_{idx}") for idx, i in enumerate(token_ids)]
 
-    # 3. Ghép tên và SHAP vào, lấy top N
-    token_shap_pairs = list(zip(feature_names, mean_abs_shap))
-    token_shap_pairs.sort(key=lambda x: x[1], reverse=True)
-    top_tokens = token_shap_pairs[:top_n]
+    # Ghép tên + SHAP value
+    token_shap_pairs = list(zip(feature_names, mean_shap))
 
-    # 4. Hiển thị SHAP summary plot (tuỳ chọn)
+    # Top đặc trưng đẩy về ransomware
+    top_pos = sorted(token_shap_pairs, key=lambda x: x[1], reverse=True)[:top_n]
+
+    # Top đặc trưng đẩy về benign
+    top_neg = sorted(token_shap_pairs, key=lambda x: x[1])[:top_n]
+
+    # Vẽ tổng quan SHAP
     shap.summary_plot(sv, X_display, feature_names=feature_names)
-    plot_top_shap_bar(top_tokens)
-    return top_tokens
+
+    # Bar plot top tích cực và tiêu cực (nếu bạn định vẽ luôn)
+    plot_top_shap_bar(top_pos + top_neg, 'benign')  # hoặc tách riêng nếu muốn
+
+    return top_pos+top_neg
 
 def plot_lime_top_5_5(local_lime, count, pred_label, pred_proba):
     # 1. Tách 2 nhóm
@@ -156,11 +180,11 @@ if __name__ == "__main__":
     X_test       = np.load("./X_test.npy")
     Y_test       = np.load("./Y_test.npy")
 
-    # 4. Global SHAP: top 10 token theo ảnh hưởng toàn tập
-    global_shap_ransome = shap_explain_global_ransome(cnn_model, X_background, X_test, id2token)
-    print("Global SHAP (top features) decision ransomeware:")
-    for token, value in global_shap_ransome:
-        print(f"{token}: {value:.6f}")
+    # # 4. Global SHAP: top 10 token theo ảnh hưởng toàn tập
+    # global_shap_ransome = shap_explain_global_ransome(cnn_model, X_background, X_test, id2token)
+    # print("Global SHAP (top features) decision ransomeware:")
+    # for token, value in global_shap_ransome:
+    #     print(f"{token}: {value:.6f}")
     print("-" * 50)
     global_shap_benign = shap_explain_global_benign(cnn_model, X_background, X_test, id2token)
     print("Global SHAP (top features) decision benign:")
