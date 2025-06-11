@@ -4,7 +4,6 @@ from PIL import Image
 from io import BytesIO
 
 st.title("🛡️ Malware Analyzer")
-
 analysis_type = st.selectbox("Chọn loại phân tích:", ["Ransomware and Benign", "Ransomware and Malware"])
 input_type = st.selectbox("Chọn kiểu file đầu vào:", ["execute", "report", "attribute"])
 
@@ -21,7 +20,7 @@ if uploaded_file and st.button("Phân tích"):
     }
 
     try:
-        res = requests.post("http://localhost:5000/analyze", files=files, data=data)
+        res = requests.post("http://localhost:5050/analyze", files=files, data=data)
         res.raise_for_status()
         result = res.json()
 
@@ -38,7 +37,7 @@ if uploaded_file and st.button("Phân tích"):
                 st.markdown(f"- `{token}`: **{weight:.4f}**")
 
             # Hiển thị plot
-            plot_resp = requests.get(f"http://localhost:5000{result['plot_url']}")
+            plot_resp = requests.get(f"http://localhost:5050{result['plot_url']}")
             img = Image.open(BytesIO(plot_resp.content))
             st.image(img, caption="Biểu đồ LIME")
 

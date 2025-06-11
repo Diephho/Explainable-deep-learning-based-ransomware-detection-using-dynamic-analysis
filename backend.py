@@ -15,6 +15,7 @@ os.makedirs(PLOT_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 300 * 1024 * 1024  # 200MB
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
@@ -66,7 +67,7 @@ def analyze():
         # Vẽ biểu đồ LIME rồi lưu ra file plot dưới dạng PNG (giả sử module trả về plot object)
         plot_filename = f"plot_{uuid.uuid4()}.png"
         plot_path = os.path.join(PLOT_FOLDER, plot_filename)
-        module.plot_lime_top_5_5_to_file(lime_result, 1, label, confidence, save_path=plot_path)
+        module.plot_lime_top_5_5_to_file(lime_result, filename, label, confidence, save_path=plot_path)
 
         # Trả về JSON kết quả + đường dẫn plot để frontend tải
         return jsonify({
@@ -89,5 +90,5 @@ def serve_plot(filename):
     return jsonify({"error": "File không tồn tại"}), 404
 
 if __name__ == '__main__':
-    app.run(debug=False, use_reloader=False)
+    app.run(debug=False, use_reloader=False,port=5050)
 

@@ -135,7 +135,7 @@ def shap_explain_global_benign(cnn_model, X_background, X_test, id2token, top_n=
 
     return top_pos+top_neg
 
-def plot_lime_top_5_5(local_lime, count, pred_label, pred_proba):
+def plot_lime_top_5_5(local_lime, count, pred_label, pred_proba,filename=None):
     # 1. Tách 2 nhóm
     pos = [(f, w) for f, w in local_lime if w > 0]
     neg = [(f, w) for f, w in local_lime if w < 0]
@@ -161,7 +161,7 @@ def plot_lime_top_5_5(local_lime, count, pred_label, pred_proba):
     plt.barh(features[::-1], weights[::-1], color=colors[::-1])  # Đảo để mạnh nhất nằm trên
     plt.axvline(x=0, color='black', linewidth=0.8)
     plt.xlabel('LIME Weight')
-    plt.title(f'Sample {count}: {pred_label} (prob={pred_proba[1]:.5f})')
+    plt.title(f'Sample {count}({filename}): {pred_label} (prob={pred_proba[1]:.5f})')
     plt.tight_layout()
     plt.show()
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     X_background = np.load("./X_background.npy")
     X_test       = np.load("./X_test.npy")
     Y_test       = np.load("./Y_test.npy")
-
+    file_names = np.load("./file_names_test.npy", allow_pickle=True)
     # # 4. Global SHAP: top 10 token theo ảnh hưởng toàn tập
     # global_shap_ransome = shap_explain_global_ransome(cnn_model, X_background, X_test, id2token)
     # print("Global SHAP (top features) decision ransomeware:")
@@ -198,11 +198,11 @@ if __name__ == "__main__":
         # Bỏ các token ID là <PAD>
         tokens_without_pad = [x for x in X_test_i if x != pad_token_id]
         if not tokens_without_pad:
-            print(f"Sample {count}: Empty after removing PAD, likely benign file.")    
+            print(f"Sample {count}({file_names[count-1]}): Empty after removing PAD, likely benign file.")
             if Y_test[count-1]==0:
-                print(f"Sample {count}: Correct prediction")
+                print(f"Sample {count}({file_names[count-1]}): Correct prediction")
             else:
-                print(f"Sample {count}: Incorrect prediction")
+                print(f"Sample {count}({file_names[count-1]}): Incorrect prediction")
             print("-" * 50)
             continue
         local_lime = lime_explain_instance(cnn_model, tokens_without_pad, id2token)
@@ -213,25 +213,25 @@ if __name__ == "__main__":
 
         top_feature = local_lime[0][0] if local_lime else None
         if top_feature == '<PAD>':
-            print(f"Sample {count}: Top feature is <PAD>, likely benign file.")
-            print(f"Sample {count} is {pred_label} from DeepLearning")
+            print(f"Sample {count}({file_names[count-1]}): Top feature is <PAD>, likely benign file.")
+            print(f"Sample {count}({file_names[count-1]}): {pred_label} from DeepLearning")
 
         else:
-            print(f"Sample {count}: Local LIME (top features):", local_lime)
-            print(f"Sample {count}: {pred_label} from prediction")
-        
+            print(f"Sample {count}({file_names[count-1]}): Local LIME (top features):", local_lime)
+            print(f"Sample {count}({file_names[count-1]}): {pred_label} from prediction")
+
         if pred_label == "Ransomware":
             if Y_test[count-1]==1:
-                print(f"Sample {count}: Correct prediction")
+                print(f"Sample {count}({file_names[count-1]}): Correct prediction")
             else:
-                print(f"Sample {count}: Incorrect prediction")
+                print(f"Sample {count}({file_names[count-1]}): Incorrect prediction")
             print("-" * 50)
         else:
             if Y_test[count-1]==0:
-                print(f"Sample {count}: Correct prediction")
+                print(f"Sample {count}({file_names[count-1]}): Correct prediction")
             else:
-                print(f"Sample {count}: Incorrect prediction")
+                print(f"Sample {count}({file_names[count-1]}): Incorrect prediction")
             print("-" * 50)
         # Plot horizontal bar chart
-        plot_lime_top_5_5(local_lime, count, pred_label, pred_proba)
+        plot_lime_top_5_5(local_lime, count, pred_label, pred_proba, file_names[count-1])
 

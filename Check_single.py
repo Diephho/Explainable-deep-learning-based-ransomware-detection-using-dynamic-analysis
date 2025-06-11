@@ -137,7 +137,7 @@ def check_and_explain(report_extract_path):
 
     return label, confidence, lime_result
 
-def plot_lime_top_5_5_to_file(local_lime, count, pred_label, pred_proba, save_path):
+def plot_lime_top_5_5_to_file(local_lime, filename, pred_label, pred_proba, save_path):
     # 1. Tách 2 nhóm
     pos = [(f, w) for f, w in local_lime if w > 0]
     neg = [(f, w) for f, w in local_lime if w < 0]
@@ -166,7 +166,7 @@ def plot_lime_top_5_5_to_file(local_lime, count, pred_label, pred_proba, save_pa
     plt.barh(features[::-1], weights[::-1], color=colors[::-1])  # Đảo để mạnh nhất nằm trên
     plt.axvline(x=0, color='black', linewidth=0.8)
     plt.xlabel('LIME Weight')
-    plt.title(f'Sample {count}: {pred_label} (prob={prob_display:.5f})')
+    plt.title(f'Lime for {filename}: {pred_label} (prob={prob_display:.5f})')
     plt.tight_layout()
     plt.savefig(save_path)
     plt.close()

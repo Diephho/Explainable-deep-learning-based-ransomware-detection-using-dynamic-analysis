@@ -9,7 +9,7 @@ from model import model
 from sklearn.metrics import accuracy_score, recall_score, f1_score, confusion_matrix
 
 def load_reports(ransom_dir: str, benign_dir: str):
-    reports, labels = [], []
+    reports, labels, file_names = [], [], []
     for fname in os.listdir(ransom_dir):
         if not fname.lower().endswith('.json'):
             continue
@@ -18,6 +18,7 @@ def load_reports(ransom_dir: str, benign_dir: str):
             features = json.load(f)
         reports.append(features)
         labels.append(1)
+        file_names.append(fname)
     for fname in os.listdir(benign_dir):
         if not fname.lower().endswith('.json'):
             continue
@@ -26,12 +27,13 @@ def load_reports(ransom_dir: str, benign_dir: str):
             features = json.load(f)
         reports.append(features)
         labels.append(0)
-    return reports, labels
+        file_names.append(fname)
+    return reports, labels, file_names
 
 def main():
     ransom_dir = 'attributes/ransomware'
     benign_dir = 'attributes/benign'
-    reports, labels = load_reports(ransom_dir, benign_dir)
+    reports, labels, file_names = load_reports(ransom_dir, benign_dir)
 
     token2id  = build_token_dict(reports)
     with open('token2id.json', 'w', encoding='utf-8') as f:
@@ -39,10 +41,11 @@ def main():
 
     sequences = prepare_sequences(reports, token2id)
     X = sequences
-    y = np.array(labels)  # ✅ KHÔNG one-hot
+    y = np.array(labels)
+    file_names = np.array(file_names)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y,
+    X_train, X_test, y_train, y_test, fn_train, fn_test = train_test_split(
+        X, y, file_names,
         test_size=0.1,
         stratify=y,
         random_state=RANDOM_STATE
@@ -52,9 +55,10 @@ def main():
     np.save('X_background.npy', X_background)
     np.save('X_test.npy', X_test)
     np.save('Y_test.npy', y_test)
+    np.save('file_names_test.npy', fn_test)
 
-    X_train, X_validate, y_train, y_validate = train_test_split(
-        X, y,
+    X_train, X_validate, y_train, y_validate, fn_train, fn_validate = train_test_split(
+        X, y, file_names,
         test_size=0.1,
         stratify=y,
         random_state=RANDOM_STATE
@@ -64,7 +68,7 @@ def main():
     np.save('X_background_validate.npy', X_background_validate)
     np.save('X_validate.npy', X_validate)
     np.save('Y_validate.npy', y_validate)
-
+    np.save('file_names_validate.npy', fn_validate)
 
     cnn_model = model(vocab_size=len(token2id) + 1)
     cnn_model.summary()
