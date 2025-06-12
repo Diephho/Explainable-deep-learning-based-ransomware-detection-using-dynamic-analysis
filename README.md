@@ -42,6 +42,7 @@ A simple web demo was built for uploading a file and classifying whether it is r
 ## 📄 Files
 - [`Slide-G05-S13.pdf`](./Slide-G05-S13.pdf) — Project presentation slides
 - [`Research_Poster-G05-S13.pdf`](./Research_Poster-G05-S13.pdf) — Academic research poster
+- [`[NT230.P21.ANTN]-Project_Final_Nhom05_S13.pdf`](./[NT230.P21.ANTN]-Project_Final_Nhom05_S13.pdf) - Detail report
 
 ## 🔖 License
 © UIT InSecLab, NT230 Course — For academic use only.
