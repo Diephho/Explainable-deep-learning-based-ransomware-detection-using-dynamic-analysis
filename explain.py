@@ -48,8 +48,12 @@ def plot_top_shap_bar(top_tokens, type):
     plt.axvline(x=0, color='gray', linestyle='--', linewidth=1)
 
     # Chú giải
-    red_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
-    blue_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Benign')
+    if type == 'ransomware':
+        red_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
+        blue_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Benign')
+    else:
+        red_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Benign')
+        blue_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
     plt.legend(handles=[red_patch, blue_patch], loc='lower right')
 
     # Căn chỉnh
@@ -121,10 +125,10 @@ def shap_explain_global_benign(cnn_model, X_background, X_test, id2token, top_n=
     # Ghép tên + SHAP value
     token_shap_pairs = list(zip(feature_names, mean_shap))
 
-    # Top đặc trưng đẩy về ransomware
+    # Top đặc trưng đẩy về benign
     top_pos = sorted(token_shap_pairs, key=lambda x: x[1], reverse=True)[:top_n]
 
-    # Top đặc trưng đẩy về benign
+    # Top đặc trưng đẩy về ransomware
     top_neg = sorted(token_shap_pairs, key=lambda x: x[1])[:top_n]
 
     # Vẽ tổng quan SHAP
@@ -180,11 +184,11 @@ if __name__ == "__main__":
     X_test       = np.load("./X_test.npy")
     Y_test       = np.load("./Y_test.npy")
     file_names = np.load("./file_names_test.npy", allow_pickle=True)
-    # # 4. Global SHAP: top 10 token theo ảnh hưởng toàn tập
-    # global_shap_ransome = shap_explain_global_ransome(cnn_model, X_background, X_test, id2token)
-    # print("Global SHAP (top features) decision ransomeware:")
-    # for token, value in global_shap_ransome:
-    #     print(f"{token}: {value:.6f}")
+    # 4. Global SHAP: top 10 token theo ảnh hưởng toàn tập
+    global_shap_ransome = shap_explain_global_ransome(cnn_model, X_background, X_test, id2token)
+    print("Global SHAP (top features) decision ransomeware:")
+    for token, value in global_shap_ransome:
+        print(f"{token}: {value:.6f}")
     print("-" * 50)
     global_shap_benign = shap_explain_global_benign(cnn_model, X_background, X_test, id2token)
     print("Global SHAP (top features) decision benign:")

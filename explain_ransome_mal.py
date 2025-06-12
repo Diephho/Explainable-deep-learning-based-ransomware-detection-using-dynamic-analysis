@@ -48,8 +48,12 @@ def plot_top_shap_bar(top_tokens, check):
     plt.axvline(x=0, color='gray', linestyle='--', linewidth=1)
 
     # Chú giải
-    red_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
-    blue_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Malware')
+    if check == 'ransomware':
+        red_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
+        blue_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Malware')
+    else:
+        red_patch = plt.Line2D([0], [0], color='blue', lw=4, label='Pushes to Malware')
+        blue_patch = plt.Line2D([0], [0], color='red', lw=4, label='Pushes to Ransomware')
     plt.legend(handles=[red_patch, blue_patch], loc='lower right')
 
     # Căn chỉnh
@@ -120,10 +124,10 @@ def shap_explain_global_malware(cnn_model, X_background, X_test, id2token, top_n
     # Ghép tên + SHAP value
     token_shap_pairs = list(zip(feature_names, mean_shap))
 
-    # Top đặc trưng đẩy về ransomware
+    # Top đặc trưng đẩy về malware
     top_pos = sorted(token_shap_pairs, key=lambda x: x[1], reverse=True)[:top_n]
 
-    # Top đặc trưng đẩy về malware
+    # Top đặc trưng đẩy về ransomware
     top_neg = sorted(token_shap_pairs, key=lambda x: x[1])[:top_n]
 
     # Vẽ tổng quan SHAP
