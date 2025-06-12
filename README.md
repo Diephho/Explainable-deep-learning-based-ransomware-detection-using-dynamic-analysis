@@ -5,6 +5,9 @@ This repository contains the final project for the course **NT230 – Malware’
 ## 📌 Project Title
 **Explainable deep learning-based ransomware detection using dynamic analysis**
 
+## References
+Sibel Gulmez, Arzu Gorgulu Kakisim, and Ibrahim Sogukpinar. 2024. XRan: Explainable deep learning-based ransomware detection using dynamic analysis. Comput. Secur. 139, C (Apr 2024). https://doi.org/10.1016/j.cose.2024.103703
+
 ## 👥 Team Members (Group G05)
 - Hồ Hoàng Diệp - 22520249  
 - Nguyễn Đặng Nguyên Khang - 22520617  
