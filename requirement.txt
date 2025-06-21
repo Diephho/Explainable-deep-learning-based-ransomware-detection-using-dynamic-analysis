@@ -1,0 +1,14 @@
+streamlit
+requests
+pillow
+matplotlib
+numpy
+pandas
+scikit-learn
+lime
+shap
+tensorflow
+tqdm
+wheel
+Flask
+keras
